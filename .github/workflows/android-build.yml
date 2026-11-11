@@ -51,6 +51,12 @@ jobs:
           else
             echo "::warning::No TETHERBRIDGE_* signing secrets found. Generating a one-time key for this build and uploading it as a CI artifact (tetherbridge-signing-keystore). Download that artifact and save it as TETHERBRIDGE_KEYSTORE_BASE64 / TETHERBRIDGE_KEYSTORE_PASSWORD / TETHERBRIDGE_KEY_ALIAS / TETHERBRIDGE_KEY_PASSWORD before the next update, so future APKs keep the same signature and install over this one. Then delete the artifact."
             GEN_PASS=$(openssl rand -hex 16)
+            # Mask the generated password: without this the runner prints it
+            # in later steps' environment dumps, and this repo is public.
+            # (The one-time key from run #4 is already exposed in its log —
+            # do NOT save that keystore as secrets; use the key from the
+            # first run after this change instead.)
+            echo "::add-mask::$GEN_PASS"
             keytool -genkeypair -keystore "$RUNNER_TEMP/tetherbridge.jks" -alias tetherbridge \
               -keyalg RSA -keysize 2048 -validity 10000 \
               -storepass "$GEN_PASS" -keypass "$GEN_PASS" \
@@ -83,5 +89,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: TetherBridge-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          # archivesName renames the APK to TetherBridge-<version>-debug.apk,
+          # so the default app-debug.apk path does not exist (run #4 red:
+          # build succeeded, upload found no files). Glob matches any version.
+          path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
