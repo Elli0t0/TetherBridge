@@ -28,8 +28,56 @@ jobs:
         with:
           gradle-version: "9.5.0"
 
+      - name: Prepare signing
+        id: prepare_signing
+        shell: bash
+        env:
+          TETHERBRIDGE_KEYSTORE_BASE64: ${{ secrets.TETHERBRIDGE_KEYSTORE_BASE64 }}
+          TETHERBRIDGE_KEYSTORE_PASSWORD: ${{ secrets.TETHERBRIDGE_KEYSTORE_PASSWORD }}
+          TETHERBRIDGE_KEY_ALIAS: ${{ secrets.TETHERBRIDGE_KEY_ALIAS }}
+          TETHERBRIDGE_KEY_PASSWORD: ${{ secrets.TETHERBRIDGE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -n "$TETHERBRIDGE_KEYSTORE_BASE64" ]; then
+            printf '%s' "$TETHERBRIDGE_KEYSTORE_BASE64" | tr -d '\r\n ' | base64 -d > "$RUNNER_TEMP/tetherbridge.jks"
+            {
+              echo "KEYSTORE_PATH=$RUNNER_TEMP/tetherbridge.jks"
+              echo "KEYSTORE_PASSWORD=$TETHERBRIDGE_KEYSTORE_PASSWORD"
+              echo "KEY_ALIAS=$TETHERBRIDGE_KEY_ALIAS"
+              echo "KEY_PASSWORD=$TETHERBRIDGE_KEY_PASSWORD"
+            } >> "$GITHUB_ENV"
+            echo "key_generated=false" >> "$GITHUB_OUTPUT"
+            echo "Using persistent signing secrets."
+          else
+            echo "::warning::No TETHERBRIDGE_* signing secrets found. Generating a one-time key for this build and uploading it as a CI artifact (tetherbridge-signing-keystore). Download that artifact and save it as TETHERBRIDGE_KEYSTORE_BASE64 / TETHERBRIDGE_KEYSTORE_PASSWORD / TETHERBRIDGE_KEY_ALIAS / TETHERBRIDGE_KEY_PASSWORD before the next update, so future APKs keep the same signature and install over this one. Then delete the artifact."
+            GEN_PASS=$(openssl rand -hex 16)
+            keytool -genkeypair -keystore "$RUNNER_TEMP/tetherbridge.jks" -alias tetherbridge \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$GEN_PASS" -keypass "$GEN_PASS" \
+              -dname "CN=TetherBridge, OU=TetherBridge, O=TetherBridge, L=Unknown, ST=Unknown, C=US" > /dev/null 2>&1
+            cp "$RUNNER_TEMP/tetherbridge.jks" "$RUNNER_TEMP/tetherbridge-keystore.jks"
+            printf '%s' "$GEN_PASS" > "$RUNNER_TEMP/tetherbridge-key-password.txt"
+            {
+              echo "KEYSTORE_PATH=$RUNNER_TEMP/tetherbridge.jks"
+              echo "KEYSTORE_PASSWORD=$GEN_PASS"
+              echo "KEY_ALIAS=tetherbridge"
+              echo "KEY_PASSWORD=$GEN_PASS"
+            } >> "$GITHUB_ENV"
+            echo "key_generated=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build debug APK
         run: gradle assembleDebug -PVERSION_CODE=$GITHUB_RUN_NUMBER
+
+      - name: Upload signing keystore (one-time key only)
+        if: steps.prepare_signing.outputs.key_generated == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tetherbridge-signing-keystore
+          path: |
+            ${{ runner.temp }}/tetherbridge-keystore.jks
+            ${{ runner.temp }}/tetherbridge-key-password.txt
+          if-no-files-found: error
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
