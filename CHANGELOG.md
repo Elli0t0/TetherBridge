@@ -15,6 +15,10 @@
   `buildFeatures { aidl = true }` is set — Kotlin failed with
   "Unresolved reference 'ITetherService'". Added the flag; no other code
   changed for this fix.
+- Fix 2, same version (CI run #3 red): aidl requires ids on ALL methods or
+  none — `getInfo()` had none while `destroy()` had one
+  ("You must either assign id's to all methods or to none of them").
+  Gave `getInfo()` id 1; `destroy()` keeps the Shizuku slot 16777114.
 - Signing: debug APK now signed with a persistent key
   (`TETHERBRIDGE_*` secrets, or the workflow's one-time key uploaded as
   the `tetherbridge-signing-keystore` artifact) so later updates install
