@@ -27,10 +27,38 @@ android {
         }
     }
 
+    signingConfigs {
+        // Persistent key for the debug APK, so every later update installs
+        // over the previous one. Values come from the workflow as env vars:
+        // KEYSTORE_PATH / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD, set
+        // either from TETHERBRIDGE_* repo secrets, or from the one-time key
+        // the workflow generates (uploaded as the tetherbridge-signing-
+        // keystore artifact) until those secrets exist. Never commit a
+        // keystore or a password; this block only reads env vars.
+        create("tetherbridge") {
+            val keystorePath = System.getenv("KEYSTORE_PATH")?.trim()
+            val keystorePassword = System.getenv("KEYSTORE_PASSWORD")?.trim()
+            val keyAliasVal = System.getenv("KEY_ALIAS")?.trim()
+            val keyPasswordVal = System.getenv("KEY_PASSWORD")?.trim()
+            if (!keystorePath.isNullOrEmpty() && !keystorePassword.isNullOrEmpty()
+                && !keyAliasVal.isNullOrEmpty() && !keyPasswordVal.isNullOrEmpty()
+            ) {
+                storeFile = file(keystorePath)
+                storePassword = keystorePassword
+                keyAlias = keyAliasVal
+                keyPassword = keyPasswordVal
+            }
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
             isShrinkResources = false
+            val persistentKey = signingConfigs.getByName("tetherbridge")
+            if (persistentKey.storeFile != null) {
+                signingConfig = persistentKey
+            }
         }
         release {
             isMinifyEnabled = false
@@ -58,6 +86,10 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        // AGP 8+ ignores .aidl files unless this is set: without it the
+        // ITetherService stub is never generated and Kotlin fails with
+        // "Unresolved reference 'ITetherService'" (CI run #1).
+        aidl = true
     }
 }
 

@@ -102,3 +102,10 @@ instead of guessing.
 - ABIs: arm64-v8a + armeabi-v7a.
 - Every push to `main` builds a debug APK (GitHub Actions,
   `.github/workflows/android-build.yml`, artifact `TetherBridge-debug`).
+- The debug APK is signed with a persistent key (not the throwaway debug
+  key): the workflow uses `TETHERBRIDGE_*` repo secrets when they exist,
+  otherwise it generates a one-time key and uploads it as the
+  `tetherbridge-signing-keystore` artifact (keystore + password file).
+  Save that artifact as the four `TETHERBRIDGE_*` secrets before the next
+  update, then delete the artifact — every later APK then installs over
+  the previous one. Never commit a keystore or a password to the repo.

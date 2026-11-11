@@ -11,3 +11,11 @@
 - All logging with tag `App`, in-app log view with Copy, every exception
   caught and shown with its real message.
 - No tethering, no TUN, no network code yet.
+- Fix, same version (CI run #1 red): AGP 8+ ignores `.aidl` files unless
+  `buildFeatures { aidl = true }` is set — Kotlin failed with
+  "Unresolved reference 'ITetherService'". Added the flag; no other code
+  changed for this fix.
+- Signing: debug APK now signed with a persistent key
+  (`TETHERBRIDGE_*` secrets, or the workflow's one-time key uploaded as
+  the `tetherbridge-signing-keystore` artifact) so later updates install
+  over this version.
